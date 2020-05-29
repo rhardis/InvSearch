@@ -9,6 +9,12 @@ import os
 import time
 
 datadir = 'C:/Users/richa/Documents/GitHub/InvSearch/data'
+
+table=pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')
+df = table[0]
+df.to_csv(os.path.join(datadir, 'S&P500-Info.csv'))
+df.to_csv(os.path.join(datadir, "S&P500-Symbols.csv"), columns=['Symbol'])
+
 sp500 = pd.read_csv(os.path.join(datadir, "S&P500-Symbols.csv"),index_col=0)
 
 
@@ -34,8 +40,8 @@ def download_data():
     ticklist = [ticker for ticker in ticklist if ticker not in ['BRK.B', 'BF.B', 'KEYS']]
     for i, ticker in enumerate(ticklist[1:end]):
 
-        base = np.random.uniform(low=0, high=2)
-        ran = np.abs(np.random.normal(5, base))
+        base = np.random.uniform(low=0, high=1)
+        ran = np.abs(np.random.normal(3.1, base))
         time.sleep(ran)
 
         try:
@@ -45,25 +51,16 @@ def download_data():
             dupe_list = new_df.index.duplicated()
             dupe_sum = np.sum(dupe_list)
             if dupe_sum > 0:
-                print(ticker)
-                print(new_df.tail())
+                print("Duplicates for {}".format(ticker))
 
                 keeplist = list(range(0, len(new_df) - 2))
                 keeplist.append(len(new_df) - 1)
                 new_df = new_df.iloc[keeplist, :]
 
-                print(new_df.tail())
-
             total_df = total_df.join(new_df, how='outer')
         except:
             print("failed {}".format(ticker))
             next
-
-        indlist = list(total_df.index)
-        indlist = [str(item)[:10] for item in indlist]
-
-        if indlist.count('2020-05-08') > 1:
-            print("Error of multiple May 7 Happened on {} number ticker {}".format(i, ticker))
 
         if i % 50 == 0:
             print("{}% Gathered".format(i / len(ticklist) * 100))
@@ -71,10 +68,7 @@ def download_data():
     total_df = total_df[[col for col in total_df.columns if 'Close' in col]]
     remove_close(total_df)
 
-    # total_df = total_df.iloc[:-1,:]    # Use this cell if running on a day that has not hit close of market yet
-    total_df.tail(40)
-
-    total_df.to_csv("sp500_individual_prices.csv")
+    total_df.to_csv(os.path.join(datadir,"sp500_individual_prices.csv"))
 
     returns_df = total_df.copy(deep=True)
     for ticker in returns_df.columns:  # ticklist[:end]:
@@ -82,7 +76,7 @@ def download_data():
         yesterday = returns_df["{}".format(ticker)].shift(1, axis=0)
         returns_df[ticker] = (today - yesterday) / yesterday * 100
     returns_df = returns_df[returns_df.columns]
-    returns_df.to_csv("sp500_individual_returns.csv")
+    returns_df.to_csv(os.path.join(datadir,"sp500_individual_returns.csv"))
 
 
 # if __name__ == "__main__":
