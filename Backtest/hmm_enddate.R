@@ -13,11 +13,17 @@ returns = as.numeric(gspcRets)
 returns[1] = 0
 
 gspcRets.ex = as.data.frame(cbind(gspcRets,seq(1,length(gspcRets))))
+date = as.character(ymd("2006-04-02"))
 #cutoff_idx = gspcRets.ex["1980-06-27",2]
-cutoff_idx = gspcRets.ex["2020-06-08",2]
-periods_to_model = nrow(gspcRets) - cutoff_idx # Start date for backtest3 
+cutoff_idx = gspcRets.ex[date,2]
+if (is.na(cutoff_idx)){
+  while (is.na(cutoff_idx)){
+    date = as.character(ymd(date) + 1)
+    cutoff_idx = gspcRets.ex[date,2]
+  }
+}
+periods_to_model = nrow(gspcRets) - cutoff_idx # Start date for backtest3
 gpx = gspcRets.ex[(nrow(gspcRets.ex)-periods_to_model+1):nrow(gspcRets.ex),]
-returns = returns[(length(returns) - periods_to_model + 1):length(returns)]
 gspc.df = as.data.frame(GSPC)
 prices = gspc.df[(nrow(gspc.df)-periods_to_model+1):nrow(gspc.df),"GSPC.Adjusted"]
 
@@ -30,11 +36,16 @@ pb = txtProgressBar(max = periods_to_model, style=3)
 progress = function(n) setTxtProgressBar(pb, n)
 opts = list(progress = progress)
 
-state_predictions = foreach(i = 1:periods_to_model, .combine=c, .options.snow = opts) %dopar% {
+total_states = 4
+
+state_predictions = foreach(i = 1:periods_to_model, .combine=rbind, .options.snow = opts) %dopar% {
+#state_predictions = foreach(i = 1:periods_to_model, .combine=rbind) %do% {
   library(depmixS4)
   library(plyr)
+  set.seed(1)
   truncated_returns = returns[1:(cutoff_idx+i)]
-  hmm <- depmix(returns ~ 1, family = gaussian(), nstates = 2, data=data.frame(returns=truncated_returns))
+  hmm_input_df = data.frame(returns=truncated_returns)
+  hmm <- depmix(returns ~ 1, family = gaussian(), nstates = total_states, data=hmm_input_df)
   hmmfit <- fit(hmm, verbose = F)
   post_probs <- posterior(hmmfit)
   post_probs$returns = truncated_returns
@@ -72,16 +83,23 @@ state_predictions = foreach(i = 1:periods_to_model, .combine=c, .options.snow = 
   }
   # to.state_predictions = pred
   # to.state_predictions
-  return(post_probs)
+  row = c()
+  for (item in post_probs[length(post_probs),c(-1, -ncol(post_probs))]){
+    row = c(row, item)
+  }
+  row = c(row, pred)
+  return(row)
 }
 close(pb)
 stopCluster(cl)
 
-preds_df = cbind(gpx,state_predictions,returns,prices)
+preds_df = cbind(gpx,state_predictions,prices)
 names(preds_df)[names(preds_df) == "prices"] = "Close.Price"
-names(preds_df)[names(preds_df) == "state_predictions"] = "State_Name"
+names(preds_df)[names(preds_df) == as.character(total_states+1)] = "State_Name"
 preds_df["date"] = ymd(rownames(as.data.frame(gspcRets[(nrow(gspcRets)-periods_to_model+1):nrow(gspcRets),])))
 write.csv(preds_df, sprintf("C:\\Users\\richa\\Documents\\GitHub\\InvSearch\\data\\state_predictions_weekly_test.csv", periods_to_model))
+
+returns = returns[(length(returns)-periods_to_model+1):length(returns)]
 
 library(patchwork)
 library(ggplot2)
