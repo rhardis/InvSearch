@@ -128,3 +128,7 @@ densall + (p / close.p)
 tend = Sys.time()
 print(tend-tstart)
 
+preds_df = cbind(gpx,state_predictions)
+#write.csv(preds_df, sprintf("C:\\Users\\richa\\Documents\\GitHub\\InvSearch\\data\\state_predictions_1960.csv", days_to_model))
+tend = Sys.time()
+print(tend-tstart)
